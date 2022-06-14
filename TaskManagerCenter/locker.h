@@ -85,24 +85,24 @@ private:
 };
 
 // 信号量类
-class Csem
+class CSem
 {
 public:
-    Csem()
+    CSem()
     {
         if (sem_init(&m_sem, 0, 0) != 0)
         {
             throw std::exception();
         }
     }
-    Csem(int num)
+    CSem(int num)
     {
         if (sem_init(&m_sem, 0, num) != 0)
         {
             throw std::exception();
         }
     }
-    ~Csem()
+    ~CSem()
     {
         sem_destroy(&m_sem);
     }

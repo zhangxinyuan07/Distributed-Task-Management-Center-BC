@@ -13,9 +13,9 @@
 using namespace std;
 
 CTcpServer TcpServer;
-CTcpClient TcpClient_sync_task_list_from_TMC;  // 用于连接TMC，周期性地获取可消费任务
+
 CTcpClient TcpClient_get_TM_address_from_TMC;  // 用于连接TMC，获取任务内容存放的地址
-CTcpClient TcpClient_get_task_content_from_TM; // 用于连接其他TM（包括自己），获取任务内容
+CTcpClient TcpClient_get_task_content_from_TM; // 用于连接其他TM，获取任务内容
 CTcpClient TcpClient_send_task_ID_to_TMC;      // 用于连接TMC, 把生产到本TM的任务ID发送给TMC, 并且等待TMC返回确认消息
 
 CTaskList TaskList;             // 创建任务队列
@@ -32,7 +32,7 @@ struct sockInfo
 struct sockInfo sockinfos[128]; // 最多同时创建128个子线程连接客户端
 
 int port;                // 监听的端口号
-string IP = "127.0.0.1"; // 自己的IP地址
+string IP = "127.0.0.1"; // 自己的IP地址, 这个需要根据情况有改动
 
 FILE *fp; // 本地任务文件
 
@@ -47,9 +47,6 @@ bool process_consumer(int cfd, char *comBuffer);
 
 // 与其他任务管理器进程通信的内容
 void process_TM(int cfd, char *comBuffer);
-
-// 接收到Client发来的获取可消费任务列表的请求，就调用该函数
-void sync_task_list(int cfd, char *comBuffer);
 
 int main(int argc, char *argv[])
 {
@@ -79,16 +76,12 @@ int main(int argc, char *argv[])
     }
 
     // 初始化需要的连接
-    TcpClient_sync_task_list_from_TMC.InitClient();
-    TcpClient_sync_task_list_from_TMC.Connect(10000);
 
     TcpClient_get_TM_address_from_TMC.InitClient();
     TcpClient_get_TM_address_from_TMC.Connect(10000);
 
     TcpClient_send_task_ID_to_TMC.InitClient();
     TcpClient_send_task_ID_to_TMC.Connect(10000);
-
-    TcpClient_get_task_content_from_TM.InitClient();
 
     // 打开任务文件, 不存在则创建一个新的文件
     fp = fopen("tasklist.txt", "a+");
@@ -209,10 +202,6 @@ void *working(void *arg)
             process_TM(pinfo->fd, comBuffer);
             break; // 处理完了就断开连接
         }
-        else if (comBuffer[0] == 's')
-        {
-            sync_task_list(pinfo->fd, comBuffer);
-        }
         else
         {
             // 格式有误, 无法识别该发送给消费者还是生产者
@@ -225,14 +214,6 @@ void *working(void *arg)
     printf("客户端已断开连接...\n");
     close(pinfo->fd);
     return NULL;
-}
-
-void sync_task_list(int cfd, char *comBuffer)
-{
-    // TcpClient_sync_task_list_from_TMC.Send(comBuffer, strlen(comBuffer));
-    // TcpClient_sync_task_list_from_TMC.Recv(comBuffer, sizeof(comBuffer));
-    // printf("接收: %s\n", comBuffer);
-    // TcpServer.Send(cfd, comBuffer, strlen(comBuffer));
 }
 
 void process_TM(int cfd, char *comBuffer)
@@ -341,21 +322,25 @@ bool process_consumer(int cfd, char *comBuffer)
                 break;
             }
         }
-        string conn_IP(strBuffer, strBuffer + IP_len);
+        string conn_IP(strBuffer, strBuffer + IP_len); // 解析出存放想消费的任务内容存放的目的TM的地址
         string tmp(strBuffer + IP_len + 1, strlen(strBuffer));
         int conn_port = stoi(tmp);
         if (conn_port == port && conn_IP == IP)
         {
+            // 如果发现目的TM就是自己, 直接写入
             sprintf(comBuffer, "%s", TaskList.m_task_list[taskID].c_str());
         }
         else
         {
+            // 不是自己, 就根据相应的IP和端口号去连接
+            TcpClient_get_task_content_from_TM.InitClient();
             TcpClient_get_task_content_from_TM.Connect(conn_port, conn_IP);
             memset(strBuffer, 0, sizeof(strBuffer));
             sprintf(strBuffer, "2,%s", to_string(taskID).c_str());
             TcpClient_get_task_content_from_TM.Send(strBuffer, strlen(strBuffer));
             TcpClient_get_task_content_from_TM.Recv(strBuffer, sizeof(strBuffer));
-            printf("收到返回的任务内容为 : %s", strBuffer);
+            TcpClient_get_task_content_from_TM.CloseClient();
+            printf("收到返回的任务内容为 : %s\n", strBuffer);
 
             memset(comBuffer, 0, sizeof(comBuffer));
             strcpy(comBuffer, strBuffer);

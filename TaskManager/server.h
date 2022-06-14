@@ -67,6 +67,10 @@ bool CTcpServer::InitServer(int port)
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY); // 本主机的任意ip地址
     servaddr.sin_port = htons(port);              // 用于绑定的通信端口
 
+    // 设置端口复用, 要在绑定之前设置
+    int reuse = 1;
+    setsockopt(m_listenfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+
     // 2. 将这个用于监听的socket文件描述符和本地的IP和端口绑定
     // 客户端连接服务器的时候使用的就是这个IP和端口
     int ret = bind(m_listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr));
