@@ -60,7 +60,7 @@ CThreadPool<T>::CThreadPool(int thread_number, int max_requests) : m_thread_numb
         throw std::exception();
     }
 
-    // 创建thread_number 个线程，并将他们设置为脱离线程。
+    // 创建thread_number 个线程，放在线程池数组m_threads里, 并将他们设置为脱离线程。
     for (int i = 0; i < thread_number; ++i)
     {
         printf("create the %dth thread\n", i);
