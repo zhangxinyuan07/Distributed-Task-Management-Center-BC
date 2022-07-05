@@ -62,7 +62,7 @@
 
 ## 项目架构
 
-![无标题](C:/Users/Administrator/Desktop/无标题.png)
+![](README/项目架构.png)
 
 
 
